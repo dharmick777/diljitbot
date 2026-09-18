@@ -22,7 +22,9 @@ permissions:
 
 jobs:
   watch:
-    runs-on: ubuntu-latest
+    # Pinned deliberately. ubuntu-latest migrates to Ubuntu 26 on 2026-10-19,
+    # which lands inside the window where this watcher must not break.
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -38,7 +40,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Send test alert
         if: inputs.test_alert
