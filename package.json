@@ -1,0 +1,17 @@
+{
+  "name": "diljitbot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.6"
+  },
+  "scripts": {
+    "start": "node --env-file=.env watcher.mjs",
+    "once": "node --env-file=.env watcher.mjs --once",
+    "test-alert": "node --env-file=.env watcher.mjs --test-alert",
+    "reset": "rm -f state/state.json",
+    "ci": "node watcher.mjs --once",
+    "ci-test-alert": "node watcher.mjs --test-alert"
+  }
+}

@@ -1,0 +1,76 @@
+name: Ticket watcher
+
+on:
+  schedule:
+    # Every 5 minutes. GitHub queues cron on a best-effort basis, so real
+    # spacing is often 5-15 minutes under load. Times are UTC.
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+    inputs:
+      test_alert:
+        description: "Send a test alert instead of checking the pages"
+        type: boolean
+        default: false
+
+# Never let two checks run at once: they would race on the state commit.
+concurrency:
+  group: ticket-watcher
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      WATCH_URLS: https://www.diljitdosanjh.com/tour/ahmedabad/,https://www.diljitdosanjh.com/tour/
+      STATE_FILE: state/ci-state.json
+      HEARTBEAT_HOURS: "24"
+      OPEN_BROWSER: "0"
+      SPEAK: "0"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Send test alert
+        if: inputs.test_alert
+        run: node watcher.mjs --test-alert
+
+      - name: Check pages
+        if: ${{ !inputs.test_alert }}
+        run: node watcher.mjs --once
+
+      - name: Commit state if it changed
+        if: ${{ !inputs.test_alert }}
+        run: |
+          if [ -z "$(git status --porcelain state/)" ]; then
+            echo "no state change"
+            exit 0
+          fi
+          git config user.name "diljitbot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state/
+          git commit -m "chore: page state $(date -u +%Y-%m-%dT%H:%MZ)"
+          # Another run may have pushed while this one was working.
+          for i in 1 2 3; do
+            git pull --rebase --autostash && git push && exit 0
+            echo "push attempt $i failed, retrying"
+            sleep 5
+          done
+          exit 1
+
+      - name: Alert on watcher failure
+        if: failure()
+        run: |
+          curl -sS -X POST \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=⚠️ diljitbot workflow FAILED. The watcher may be blind. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
