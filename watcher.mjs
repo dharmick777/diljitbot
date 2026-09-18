@@ -21,6 +21,11 @@ const STATE_FILE = new URL(`./${STATE_PATH}`, import.meta.url);
 const IS_CI = env.CI === "true" || env.GITHUB_ACTIONS === "true";
 
 const ONCE = process.argv.includes("--once");
+// --minutes=N bounds a loop run so a CI job ends cleanly on its own, without
+// depending on GNU timeout (absent on macOS) and with state saved on the way out.
+const MINUTES = Number(
+  process.argv.find((a) => a.startsWith("--minutes="))?.split("=")[1] ?? 0,
+);
 const TEST_ALERT = process.argv.includes("--test-alert");
 
 // Known ticketing platforms. Any href on these hosts = drop is live.
@@ -158,7 +163,9 @@ async function tick(state) {
   }
   await saveState(state);
   if (failures === WATCH_URLS.length) {
-    throw new Error(`all ${failures} watched page(s) failed to fetch`);
+    const msg = `all ${failures} watched page(s) failed to fetch`;
+    if (ONCE) throw new Error(msg);
+    log(`WARN ${msg} - continuing`);
   }
 }
 
@@ -170,11 +177,19 @@ async function main() {
   const state = await loadState();
   log(`watching ${WATCH_URLS.join(", ")} every ~${INTERVAL_MS / 1000}s`);
   if (ONCE) { await tick(state); return; }
-  for (;;) {
-    await tick(state);
+
+  const deadline = MINUTES > 0 ? Date.now() + MINUTES * 60_000 : Infinity;
+  if (MINUTES > 0) log(`this run will stop after ${MINUTES} minute(s)`);
+
+  let polls = 0;
+  while (Date.now() < deadline) {
+    try { await tick(state); polls++; }
+    catch (e) { log(`tick error: ${e.message} - continuing`); }
     const jitter = INTERVAL_MS * (0.8 + Math.random() * 0.4);
+    if (Date.now() + jitter >= deadline) break;
     await sleep(jitter);
   }
+  log(`watch window finished after ${polls} poll(s)`);
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

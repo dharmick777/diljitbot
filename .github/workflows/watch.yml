@@ -1,18 +1,25 @@
 name: Ticket watcher
 
+# GitHub runs scheduled workflows best-effort and drops high-frequency ones
+# under load. A */5 schedule produced zero runs in 28 minutes on this repo.
+# So the schedule only has to land ONCE per half hour: each run then polls
+# internally for 55 minutes. If a trigger is dropped, the next one recovers,
+# and because concurrency queues at most one run, coverage is continuous.
 on:
   schedule:
-    # Every 5 minutes. GitHub queues cron on a best-effort basis, so real
-    # spacing is often 5-15 minutes under load. Times are UTC.
-    - cron: "*/5 * * * *"
+    - cron: "0 * * * *"
+    - cron: "30 * * * *"
   workflow_dispatch:
     inputs:
       test_alert:
-        description: "Send a test alert instead of checking the pages"
+        description: "Send a test alert instead of watching"
         type: boolean
         default: false
+      minutes:
+        description: "How long this run should watch for"
+        type: string
+        default: "55"
 
-# Never let two checks run at once: they would race on the state commit.
 concurrency:
   group: ticket-watcher
   cancel-in-progress: false
@@ -25,12 +32,13 @@ jobs:
     # Pinned deliberately. ubuntu-latest migrates to Ubuntu 26 on 2026-10-19,
     # which lands inside the window where this watcher must not break.
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 60
     env:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       WATCH_URLS: https://www.diljitdosanjh.com/tour/ahmedabad/,https://www.diljitdosanjh.com/tour/
       STATE_FILE: state/ci-state.json
+      INTERVAL_SECONDS: "60"
       HEARTBEAT_HOURS: "24"
       OPEN_BROWSER: "0"
       SPEAK: "0"
@@ -46,12 +54,14 @@ jobs:
         if: inputs.test_alert
         run: node watcher.mjs --test-alert
 
-      - name: Check pages
+      - name: Watch pages
         if: ${{ !inputs.test_alert }}
-        run: node watcher.mjs --once
+        run: |
+          MINUTES="${{ inputs.minutes || '55' }}"
+          node watcher.mjs --minutes="${MINUTES}"
 
-      - name: Commit state if it changed
-        if: ${{ !inputs.test_alert }}
+      - name: Commit state
+        if: ${{ always() && !inputs.test_alert }}
         run: |
           if [ -z "$(git status --porcelain state/)" ]; then
             echo "no state change"
@@ -61,7 +71,6 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add state/
           git commit -m "chore: page state $(date -u +%Y-%m-%dT%H:%MZ)"
-          # Another run may have pushed while this one was working.
           for i in 1 2 3; do
             git pull --rebase --autostash && git push && exit 0
             echo "push attempt $i failed, retrying"

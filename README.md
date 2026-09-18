@@ -29,7 +29,18 @@ Both deployment modes need a Telegram bot.
 
 ## Running on GitHub Actions (primary)
 
-The workflow in `.github/workflows/watch.yml` runs every 5 minutes on GitHub's runners, so nothing depends on your laptop being awake. Actions minutes are free and unlimited on public repositories.
+The workflow in `.github/workflows/watch.yml` runs on GitHub's runners, so nothing
+depends on your laptop being awake. Actions minutes are free and unlimited on
+public repositories.
+
+It does not rely on a frequent cron. GitHub runs scheduled workflows on a
+best-effort basis and drops high-frequency ones under load: a `*/5` schedule
+produced zero runs here in 28 minutes. Instead the schedule fires twice an hour
+and each run then polls internally every 60 seconds for 55 minutes. Only one
+trigger per half hour has to land. If one is dropped the next recovers, and
+because the concurrency group queues at most one run, coverage stays continuous.
+
+Detection lag is therefore about 60 seconds, not 5 to 15 minutes.
 
 Set the two secrets once. With the token already in `.env`, send your bot any
 message on Telegram and then run:
@@ -68,9 +79,7 @@ gh run watch
 
 Page state is committed to `state/ci-state.json` after every change, so the commit history doubles as a log of exactly what changed on the page and when. Runs never overlap, and a failed run sends its own Telegram warning so the watcher cannot go blind silently.
 
-### Two caveats
-
-GitHub queues scheduled workflows on a best-effort basis. Real spacing is often 5 to 15 minutes under load, not exactly 5. That is fine here: this watcher tells you the sale was announced, and announcements stay up for hours. The race that decides whether you get tickets happens later, on the ticketing platform, at the published sale time.
+### Caveat
 
 GitHub disables scheduled workflows after 60 days without repository activity, and it emails you first. The show is about two months out, so this sits right at the edge. If you get that email, re-enable it from the Actions tab or run `gh workflow enable "Ticket watcher"`.
 
