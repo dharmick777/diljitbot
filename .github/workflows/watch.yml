@@ -26,6 +26,7 @@ concurrency:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   watch:
@@ -77,6 +78,24 @@ jobs:
             sleep 5
           done
           exit 1
+
+      # The schedule above has proven unreliable on this repo, so each healthy run
+      # triggers its successor. workflow_dispatch is the documented exception to
+      # the rule that GITHUB_TOKEN-triggered events cannot start a workflow, so
+      # this needs no personal access token. Only a successful run chains, which
+      # stops a cancelled or failing run from spawning duplicates, and the cron
+      # remains as the restarter if the chain ever breaks.
+      - name: Chain the next run
+        if: ${{ success() && !inputs.test_alert }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$(date -u +%Y%m%d)" -gt "20261201" ]; then
+            echo "past the show date, not chaining"
+            exit 0
+          fi
+          gh workflow run "Ticket watcher" -f minutes=55
+          echo "next run queued"
 
       - name: Alert on watcher failure
         if: failure()
