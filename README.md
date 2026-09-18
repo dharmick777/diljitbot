@@ -33,14 +33,36 @@ The workflow in `.github/workflows/watch.yml` runs on GitHub's runners, so nothi
 depends on your laptop being awake. Actions minutes are free and unlimited on
 public repositories.
 
-It does not rely on a frequent cron. GitHub runs scheduled workflows on a
-best-effort basis and drops high-frequency ones under load: a `*/5` schedule
-produced zero runs here in 28 minutes. Instead the schedule fires twice an hour
-and each run then polls internally every 60 seconds for 55 minutes. Only one
-trigger per half hour has to land. If one is dropped the next recovers, and
-because the concurrency group queues at most one run, coverage stays continuous.
+It does not rely on cron at all. GitHub never fired a scheduled run on this
+repo: a `*/5` schedule produced nothing in 28 minutes, and the hourly slot was
+still empty 10 minutes past due. Scheduled workflows are best-effort and get
+dropped under load.
 
-Detection lag is therefore about 60 seconds, not 5 to 15 minutes.
+So the watcher drives itself. Each run polls every 60 seconds for 55 minutes,
+then triggers its successor before exiting. `workflow_dispatch` is the
+documented exception to the rule that `GITHUB_TOKEN`-triggered events cannot
+start a workflow, so this needs no personal access token and no extra secret.
+Detection lag is about 60 seconds.
+
+Only a successful run chains, so a cancelled or failing run cannot spawn
+duplicates, and the concurrency group caps everything at one running plus one
+queued. The twice-hourly cron is kept purely as a restarter in case the chain
+ever breaks. Chaining stops after 2026-12-01 so this does not run forever past
+the show.
+
+### If the chain ever stops
+
+Start it again with a single dispatch:
+
+```bash
+gh workflow run "Ticket watcher" -f minutes=55
+```
+
+Check what is running at any time:
+
+```bash
+gh run list --workflow="Ticket watcher" --limit 5
+```
 
 Set the two secrets once. With the token already in `.env`, send your bot any
 message on Telegram and then run:
