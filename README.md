@@ -31,12 +31,28 @@ Both deployment modes need a Telegram bot.
 
 The workflow in `.github/workflows/watch.yml` runs every 5 minutes on GitHub's runners, so nothing depends on your laptop being awake. Actions minutes are free and unlimited on public repositories.
 
-Set the two secrets once:
+Set the two secrets once. With the token already in `.env`, send your bot any
+message on Telegram and then run:
+
+```bash
+./finish-setup.sh
+```
+
+That reads the chat id from the bot's pending updates, writes it to `.env`, stores
+it as a repository secret, and fires a test alert. To set either value by hand
+instead:
 
 ```bash
 gh secret set TELEGRAM_BOT_TOKEN
 gh secret set TELEGRAM_CHAT_ID
 ```
+
+### Rotating the bot token
+
+If the token is ever exposed, message [@BotFather](https://t.me/BotFather), pick the
+bot, and use `/revoke` to issue a new one. Then update `.env` and re-run
+`gh secret set TELEGRAM_BOT_TOKEN`. A leaked token lets anyone send messages as
+your bot, but it grants no access to your Telegram account.
 
 Confirm alerts reach your phone:
 
