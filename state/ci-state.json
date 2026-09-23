@@ -3,9 +3,9 @@
     "https://www.diljitdosanjh.com/tour/ahmedabad/": {
       "ticketLinks": [],
       "onSale": false,
-      "preSale": true,
-      "hash": "-400662898",
-      "textSample": "Aura India Tour Saturday, 21 November 2026 Narendra Modi Stadium Ahmedabad, India Fan registration Register to be the first to know when tickets go on sale. Full name* Email* Mobile number* +91 ▼ I co"
+      "preSale": false,
+      "hash": "96014092",
+      "textSample": "Aura World Tour 2026 | Dates and Tickets · Diljit Dosanjh"
     },
     "https://www.diljitdosanjh.com/tour/": {
       "ticketLinks": [
@@ -14,7 +14,7 @@
       ],
       "onSale": false,
       "preSale": true,
-      "hash": "111234723",
+      "hash": "242014991",
       "textSample": "Tour Upcoming shows &amp; past tours Aura World Tour Dil-Luminati Tour Born to Shine World Tour All North America Europe India Oceania Fan registration — open now Aura India Tour Ahmedabad · Narendra "
     }
   },
